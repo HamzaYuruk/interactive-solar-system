@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Solar System Project</title>
+    <style>
+        /* --- UI STYLING --- */
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        /* Info Messages */
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px black;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        #info2 {
+            position: absolute;
+            top: 30px;
+            width: 100%;
+            text-align: center;
+            color: #aaa;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px black;
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        /* Planet Selector (Top Right) */
+        #selector-box {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 10, 20, 0.85);
+            padding: 15px;
+            border: 1px solid #00ccff;
+            border-radius: 8px;
+            z-index: 100;
+            box-shadow: 0 0 10px rgba(0, 204, 255, 0.2);
+        }
+
+        #planet-select {
+            background: #111;
+            color: white;
+            border: 1px solid #444;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 160px;
+            cursor: pointer;
+        }
+
+        #planet-select:focus {
+            outline: none;
+            border-color: #00ccff;
+        }
+
+        /* Info Panel (Bottom Left) */
+        #interaction {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            color: #00ccff;
+            background: rgba(0, 10, 20, 0.9);
+            padding: 15px;
+            display: none;
+            border-radius: 8px;
+            border: 1px solid #00ccff;
+            min-width: 200px;
+        }
+
+        /* Controls Panel (Bottom Right) - YÜKSEKLİK AYARLANDI */
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            min-width: 220px;
+        }
+
+        /* Slider Stilleri */
+        input[type=range] {
+            width: 100%;
+            cursor: pointer;
+            margin-top: 5px;
+            accent-color: #00ccff;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .label-text {
+            font-size: 13px;
+            font-weight: bold;
+            color: #ccc;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="info">SOLAR SYSTEM SIMULATION</div>
+    <div id="info2">Zoom: Mouse Wheel | Rotate: Right Click | Select: Left Click</div>
+
+    <div id="selector-box">
+        <label style="color: #00ccff; font-weight: bold; display:block; margin-bottom:8px; font-size: 12px;">SELECT
+            TARGET:</label>
+        <select id="planet-select">
+            <option value="">-- Free Camera --</option>
+            <option value="sun">SUN</option>
+            <option value="mercury">MERCURY</option>
+            <option value="venus">VENUS</option>
+            <option value="earth">EARTH</option>
+            <option value="moon">MOON</option>
+            <option value="mars">MARS</option>
+            <option value="jupiter">JUPITER</option>
+            <option value="saturn">SATURN</option>
+            <option value="uranus">URANUS</option>
+            <option value="neptune">NEPTUNE</option>
+        </select>
+    </div>
+
+    <div id="interaction">
+        <strong style="color:white; font-size:0.9em; letter-spacing: 1px;">SELECTED OBJECT</strong><br>
+        <hr style="border-color: #00ccff; margin: 8px 0; opacity: 0.5;">
+        <span id="planet-name" style="font-size: 1.4em; font-weight: bold;"></span>
+    </div>
+
+    <div id="controls">
+        <div class="control-group">
+            <div class="label-text">
+                <span>Zoom Distance</span>
+                <span id="zoom-value" style="color:#00ccff;">90</span>
+            </div>
+            <input type="range" id="zoomSlider" min="10" max="300" step="1" value="90">
+        </div>
+
+        <div class="control-group" style="margin-bottom: 0;">
+            <div class="label-text">
+                <span>Simulation Speed</span>
+                <span id="speed-value" style="color:#00ccff;">1.0x</span>
+            </div>
+            <input type="range" id="speedSlider" min="0" max="5" step="0.1" value="1">
+        </div>
+    </div>
+
+    <script type="importmap">
+  { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- GLOBAL VARIABLES ---
+        let focusedObject = null;
+        let gameSpeed = 1;
+        const clickableObjects = [];
+
+        // --- 1. SCENE & CAMERA SETUP ---
+        const scene = new THREE.Scene();
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 4000);
+        camera.position.set(0, 50, 90);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // --- 2. TEXTURE LOADER ---
+        const textureLoader = new THREE.TextureLoader();
+
+        // --- 3. BACKGROUND (STAR FIELD) ---
+        scene.background = new THREE.Color(0x000005);
+        const starsGeometry = new THREE.BufferGeometry();
+        const starsCount = 6000;
+        const posArray = new Float32Array(starsCount * 3);
+
+        for (let i = 0; i < starsCount * 3; i++) {
+            posArray[i] = (Math.random() - 0.5) * 3000;
+        }
+
+        starsGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const starsMaterial = new THREE.PointsMaterial({ size: 0.5, color: 0xffffff, transparent: true, opacity: 0.8 });
+        const starMesh = new THREE.Points(starsGeometry, starsMaterial);
+        scene.add(starMesh);
+
+        // --- 4. LIGHTING ---
+        scene.add(new THREE.AmbientLight(0x333333));
+
+        const sunLight = new THREE.PointLight(0xffffff, 3, 2000, 0); // Decay: 0
+        sunLight.position.set(0, 0, 0);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        scene.add(sunLight);
+
+        // --- 5. PLANET CREATION SYSTEM ---
+
+        // SUN
+        const sunGeo = new THREE.SphereGeometry(8, 64, 64);
+        const sunMat = new THREE.MeshBasicMaterial({ map: textureLoader.load('textures/sun.jpg') });
+        const sun = new THREE.Mesh(sunGeo, sunMat);
+        sun.userData = { name: "SUN (Star)" };
+        scene.add(sun);
+        clickableObjects.push(sun);
+
+        // Planet Helper Function
+        function createPlanet(name, size, textureName, distance, speed) {
+            const orbitGroup = new THREE.Object3D();
+            sun.add(orbitGroup);
+
+
+            const geo = new THREE.SphereGeometry(size, 32, 32);
+            let texture;
+            try { texture = textureLoader.load('textures/' + textureName); }
+            catch (e) { console.log("Texture error"); }
+
+            const mat = new THREE.MeshStandardMaterial({
+                map: texture,
+                roughness: 0.8,
+                color: texture ? 0xffffff : 0x888888
+            });
+
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.x = distance;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.userData = { name: name, rotationSpeed: speed, orbitSpeed: speed / 2 };
+
+            orbitGroup.add(mesh);
+            clickableObjects.push(mesh);
+
+            // Orbit Line
+            const lineGeo = new THREE.RingGeometry(distance - 0.1, distance + 0.1, 128);
+            const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, opacity: 0.1, transparent: true, side: THREE.DoubleSide });
+            const line = new THREE.Mesh(lineGeo, lineMat);
+            line.rotation.x = Math.PI / 2;
+            scene.add(line);
+
+            return { mesh: mesh, orbit: orbitGroup };
+        }
+
+        // Creating Planets
+        const mercury = createPlanet("MERCURY", 1.5, "mercury.jpg", 14, 0.04);
+        const venus = createPlanet("VENUS", 2.8, "venus.jpg", 22, 0.015);
+        const earth = createPlanet("EARTH", 3.0, "earth.jpg", 32, 0.01);
+        const mars = createPlanet("MARS", 2.2, "mars.jpg", 42, 0.008);
+        const jupiter = createPlanet("JUPITER", 7.0, "jupiter.jpg", 65, 0.004);
+
+        // SATURN & RING
+        const saturn = createPlanet("SATURN", 6.0, "saturn.jpg", 90, 0.003);
+
+        const saturnRingGeo = new THREE.RingGeometry(7, 12, 64);
+        const saturnRingMat = new THREE.MeshStandardMaterial({
+            color: 0xcfb53b, side: THREE.DoubleSide, transparent: true, opacity: 0.6
+        });
+        const saturnRing = new THREE.Mesh(saturnRingGeo, saturnRingMat);
+        saturnRing.rotation.x = Math.PI / 2;
+        saturnRing.castShadow = true;
+        saturnRing.receiveShadow = true;
+        saturnRing.userData = { name: "SATURN RING" };
+        saturn.mesh.add(saturnRing);
+
+        const uranus = createPlanet("URANUS", 4.0, "uranus.jpg", 115, 0.002);
+        const neptune = createPlanet("NEPTUNE", 3.8, "neptune.jpg", 135, 0.001);
+
+        // MOON
+        const moonOrbit = new THREE.Object3D();
+        earth.mesh.add(moonOrbit);
+        const moon = new THREE.Mesh(
+            new THREE.SphereGeometry(0.8, 32, 32),
+            new THREE.MeshStandardMaterial({ map: textureLoader.load('textures/moon.jpg'), roughness: 0.9 })
+        );
+        moon.position.x = 5;
+        moon.castShadow = true;
+        moon.receiveShadow = true;
+        moon.userData = { name: "MOON (Satellite)" };
+        moonOrbit.add(moon);
+        clickableObjects.push(moon);
+
+
+
+        // --- 6. FOCUS FUNCTION ---
+        function focusOnObject(targetObj) {
+            if (targetObj) {
+                focusedObject = targetObj;
+                document.getElementById('planet-name').innerText = targetObj.userData.name;
+                document.getElementById('interaction').style.display = 'block';
+
+                if (targetObj.userData.name === "SATURN RING") {
+                    document.getElementById('planet-name').innerText = "SATURN";
+                }
+            } else {
+                focusedObject = null;
+                document.getElementById('interaction').style.display = 'none';
+                controls.target.set(0, 0, 0);
+            }
+        }
+
+        // --- 7. INTERACTION (RAYCASTER) ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('click', (event) => {
+            // Prevent clicking through UI
+            if (event.target.closest('#selector-box') || event.target.closest('#controls')) {
+                return;
+            }
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(clickableObjects);
+
+            if (intersects.length > 0) {
+                focusOnObject(intersects[0].object);
+            } else {
+                focusOnObject(null);
+                document.getElementById('planet-select').value = "";
+            }
+        });
+
+        // --- 8. UI LOGIC & CONTROLS ---
+
+        // Planet Selection
+        const planetDictionary = {
+            "sun": sun,
+            "mercury": mercury.mesh,
+            "venus": venus.mesh,
+            "earth": earth.mesh,
+            "moon": moon,
+            "mars": mars.mesh,
+            "jupiter": jupiter.mesh,
+            "saturn": saturn.mesh,
+            "uranus": uranus.mesh,
+            "neptune": neptune.mesh
+        };
+
+        const selectMenu = document.getElementById('planet-select');
+        selectMenu.addEventListener('change', (event) => {
+            const selectedValue = event.target.value;
+            if (selectedValue === "") {
+                focusOnObject(null);
+            } else {
+                const targetObj = planetDictionary[selectedValue];
+                focusOnObject(targetObj);
+            }
+        });
+
+        // SPEED Slider
+        const speedSlider = document.getElementById('speedSlider');
+        speedSlider.addEventListener('input', (e) => {
+            gameSpeed = parseFloat(e.target.value);
+            document.getElementById('speed-value').innerText = gameSpeed.toFixed(1) + "x";
+        });
+
+        // ZOOM Slider Logic (YENİ)
+        const zoomSlider = document.getElementById('zoomSlider');
+        const zoomValue = document.getElementById('zoom-value');
+
+        // Slider değişince Kamerayı taşı
+        zoomSlider.addEventListener('input', (e) => {
+            const dist = parseFloat(e.target.value);
+            zoomValue.innerText = dist.toFixed(0);
+
+            // Hedefe (Target) doğru olan yön vektörünü bul
+            const direction = new THREE.Vector3().copy(camera.position).sub(controls.target).normalize();
+
+            // Hedef + (Yön * Mesafe) formülü ile yeni pozisyonu ayarla
+            camera.position.copy(controls.target).add(direction.multiplyScalar(dist));
+        });
+
+        // Kullanıcı Mouse ile Zoom yaparsa Slider'ı güncelle (Senkronizasyon)
+        controls.addEventListener('change', () => {
+            // Sadece kullanıcı slider'ı o an tutmuyorsa güncelle (Çatışmayı önle)
+            if (document.activeElement !== zoomSlider) {
+                const dist = camera.position.distanceTo(controls.target);
+                // Sınırlar içinde güncelle
+                if (dist >= 10 && dist <= 300) {
+                    zoomSlider.value = dist;
+                    zoomValue.innerText = dist.toFixed(0);
+                }
+            }
+        });
+
+
+        // --- 9. ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            sun.rotation.y += 0.002 * gameSpeed;
+
+            mercury.orbit.rotation.y += mercury.mesh.userData.orbitSpeed * gameSpeed;
+            mercury.mesh.rotation.y += mercury.mesh.userData.rotationSpeed * gameSpeed;
+
+            venus.orbit.rotation.y += venus.mesh.userData.orbitSpeed * gameSpeed;
+            venus.mesh.rotation.y += venus.mesh.userData.rotationSpeed * gameSpeed;
+
+            earth.orbit.rotation.y += earth.mesh.userData.orbitSpeed * gameSpeed;
+            earth.mesh.rotation.y += earth.mesh.userData.rotationSpeed * gameSpeed;
+
+            mars.orbit.rotation.y += mars.mesh.userData.orbitSpeed * gameSpeed;
+            mars.mesh.rotation.y += mars.mesh.userData.rotationSpeed * gameSpeed;
+
+            jupiter.orbit.rotation.y += jupiter.mesh.userData.orbitSpeed * gameSpeed;
+            jupiter.mesh.rotation.y += jupiter.mesh.userData.rotationSpeed * gameSpeed;
+
+            saturn.orbit.rotation.y += saturn.mesh.userData.orbitSpeed * gameSpeed;
+            saturn.mesh.rotation.y += saturn.mesh.userData.rotationSpeed * gameSpeed;
+
+            uranus.orbit.rotation.y += uranus.mesh.userData.orbitSpeed * gameSpeed;
+            uranus.mesh.rotation.y += uranus.mesh.userData.rotationSpeed * gameSpeed;
+
+            neptune.orbit.rotation.y += neptune.mesh.userData.orbitSpeed * gameSpeed;
+            neptune.mesh.rotation.y += neptune.mesh.userData.rotationSpeed * gameSpeed;
+
+            moonOrbit.rotation.y += 0.02 * gameSpeed;
+
+            if (focusedObject) {
+                const targetPos = new THREE.Vector3();
+                focusedObject.getWorldPosition(targetPos);
+                controls.target.lerp(targetPos, 0.1);
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+
+</html>
