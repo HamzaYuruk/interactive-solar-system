@@ -40,7 +40,7 @@ const intersects = raycaster.intersectObjects(clickableObjects);
 if (intersects.length > 0) {
     focusOnObject(intersects[0].object);
 }
-
+```
 3. Textures & Materials
 High-resolution equirectangular textures are mapped onto spheres using MeshStandardMaterial. This allows the planets to react physically to the light source (Sun), creating realistic day/night cycles.
 
